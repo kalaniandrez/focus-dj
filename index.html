@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Focus DJ - Binaural Beats + Focus Timer + ADHD Task Anchor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#050510;--surface:rgba(15,15,30,0.7);--card:rgba(20,20,45,0.6);--border:rgba(74,158,255,0.12);--text:#e0e4f0;--dim:#6a6e88;--blue:#4a9eff;--purple:#8b5cf6;--grad:linear-gradient(135deg,#4a9eff,#8b5cf6);--glow:0 0 30px rgba(74,158,255,0.15);--radius:16px}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;position:relative}
+
+/* === BACKGROUND CANVAS === */
+canvas#bgViz{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+/* === MAIN LAYOUT === */
+.app{position:relative;z-index:1;width:100%;max-width:480px;height:100%;display:flex;flex-direction:column;padding:16px 16px 0}
+
+/* === TASK ANCHOR BAR === */
+.task-bar{width:100%;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;min-height:44px;flex-shrink:0}
+.task-bar .icon{font-size:16px;flex-shrink:0}
+.task-bar input{flex:1;background:none;border:none;color:var(--text);font-size:14px;font-family:inherit;outline:none}
+.task-bar input::placeholder{color:var(--dim)}
+.task-bar .xp{font-size:12px;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;flex-shrink:0;display:none}
+.task-bar.has-task .xp{display:block}
+
+/* === CENTER STAGE: VISUALIZER + TIMER RING === */
+.center-stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;min-height:0}
+.viz-container{position:relative;width:280px;height:280px;flex-shrink:0}
+canvas#vizCanvas{width:100%;height:100%;border-radius:50%}
+.timer-ring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:300px}
+.timer-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.timer-ring circle{fill:none;stroke-linecap:round}
+.ring-bg{stroke:rgba(74,158,255,0.08);stroke-width:3}
+.ring-progress{stroke:url(#ringGrad);stroke-width:3;transition:stroke-dashoffset 1s linear}
+.timer-display{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.timer-time{font-size:48px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:2px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.timer-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:3px;margin-top:2px}
+.session-dots{display:flex;gap:6px;justify-content:center;margin-top:4px}
+.session-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);opacity:0.3}
+.session-dot.done{background:var(--blue);opacity:1}
+
+/* === PRESET CHIPS === */
+.presets{display:flex;gap:8px;justify-content:center;margin:16px 0 8px;flex-wrap:wrap;flex-shrink:0}
+.preset-chip{padding:7px 16px;border-radius:50px;border:1px solid var(--border);background:var(--card);backdrop-filter:blur(10px);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;transition:all .3s;font-family:inherit;white-space:nowrap}
+.preset-chip:hover{border-color:rgba(74,158,255,0.3)}
+.preset-chip.active{border-color:var(--blue);color:var(--blue);box-shadow:0 0 20px rgba(74,158,255,0.12)}
+
+/* === BOTTOM CONTROLS === */
+.bottom-controls{flex-shrink:0;padding:8px 0 12px}
+.main-controls{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px}
+.ctrl-btn{width:48px;height:48px;border-radius:50%;border:1.5px solid var(--border);background:var(--card);backdrop-filter:blur(10px);color:var(--dim);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s;font-family:inherit}
+.ctrl-btn:hover{border-color:var(--blue);color:var(--text)}
+.ctrl-btn.active{border-color:var(--blue);color:var(--blue)}
+.play-btn{width:60px;height:60px;font-size:22px;border:2px solid;border-image:var(--grad) 1;border-radius:50%;border:2px solid var(--blue);color:var(--blue)}
+.play-btn.playing{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 0 30px rgba(74,158,255,0.3)}
+
+/* === NAV TABS === */
+.nav-tabs{display:flex;justify-content:space-around;padding:8px 0 env(safe-area-inset-bottom,8px)}
+.nav-tab{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--dim);font-size:10px;font-family:inherit;cursor:pointer;padding:4px 12px;border-radius:8px;transition:all .2s}
+.nav-tab:hover,.nav-tab.active{color:var(--blue)}
+.nav-tab svg{width:20px;height:20px}
+
+/* === PANELS (slide up) === */
+.panel-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(5,5,16,0.6);z-index:10;opacity:0;pointer-events:none;transition:opacity .3s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.panel{position:fixed;bottom:0;left:0;right:0;max-height:75vh;background:rgba(12,12,28,0.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-top:1px solid var(--border);border-radius:20px 20px 0 0;z-index:11;transform:translateY(100%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);overflow-y:auto;padding:24px 20px env(safe-area-inset-bottom,20px)}
+.panel.open{transform:translateY(0)}
+.panel-handle{width:36px;height:4px;background:var(--dim);border-radius:2px;margin:0 auto 20px;opacity:0.4}
+.panel h3{font-size:16px;font-weight:700;margin-bottom:16px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+/* === TIMER PANEL === */
+.timer-modes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+.timer-mode{padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--card);cursor:pointer;text-align:center;transition:all .2s}
+.timer-mode:hover{border-color:rgba(74,158,255,0.3)}
+.timer-mode.active{border-color:var(--blue);box-shadow:var(--glow)}
+.timer-mode .tm-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.timer-mode .tm-desc{font-size:11px;color:var(--dim)}
+.custom-timer{display:flex;gap:8px;align-items:center;margin-top:8px}
+.custom-timer input{width:60px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;text-align:center;font-family:inherit}
+.custom-timer span{font-size:12px;color:var(--dim)}
+.auto-toggle{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 0}
+.auto-toggle span{font-size:13px}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--dim);position:relative;cursor:pointer;transition:background .2s}
+.toggle.on{background:var(--blue)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle.on::after{transform:translateX(18px)}
+
+/* === SOUND / DJ PANEL === */
+.slider-row{margin-bottom:14px}
+.slider-row label{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:6px}
+.slider-row label span:last-child{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(74,158,255,0.12);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px rgba(74,158,255,0.4);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--blue);border:none;cursor:pointer}
+.ambient-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.amb-card{padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--card);cursor:pointer;text-align:center;transition:all .2s}
+.amb-card:hover{border-color:rgba(74,158,255,0.3)}
+.amb-card.active{border-color:var(--blue);box-shadow:var(--glow)}
+.amb-card .amb-icon{font-size:20px;margin-bottom:4px}
+.amb-card .amb-name{font-size:11px;color:var(--dim)}
+.amb-card.active .amb-name{color:var(--blue)}
+.amb-slider{margin-top:6px}
+.amb-slider input[type=range]{height:3px}
+
+/* === STATS PANEL === */
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat-card{padding:16px;border-radius:12px;border:1px solid var(--border);background:var(--card);text-align:center}
+.stat-val{font-size:28px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.stat-card.wide{grid-column:span 2}
+
+/* === TASK COMPLETE MODAL === */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(5,5,16,0.8);z-index:20;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:rgba(15,15,35,0.95);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:20px;padding:32px 24px;text-align:center;max-width:340px;width:100%}
+.modal h3{font-size:18px;margin-bottom:8px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.modal .task-name{font-size:14px;color:var(--dim);margin-bottom:20px;line-height:1.5}
+.modal-btns{display:flex;gap:10px}
+.modal-btn{flex:1;padding:12px;border-radius:12px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+.modal-btn.yes{background:var(--grad);color:#fff}
+.modal-btn.no{background:var(--card);border:1px solid var(--border);color:var(--dim)}
+.modal-btn:hover{transform:scale(1.02)}
+.xp-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:32px;font-weight:900;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;z-index:30;pointer-events:none;opacity:0;transition:all .6s}
+.xp-popup.show{opacity:1;transform:translate(-50%,-80%)}
+
+/* === HEADPHONES NOTICE === */
+.hp-notice{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(5,5,16,0.95);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.hp-card{text-align:center;max-width:320px}
+.hp-card .hp-icon{font-size:48px;margin-bottom:16px}
+.hp-card h2{font-size:20px;margin-bottom:8px}
+.hp-card p{font-size:13px;color:var(--dim);margin-bottom:24px;line-height:1.6}
+.hp-card button{padding:14px 40px;border-radius:50px;border:none;background:var(--grad);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+
+/* === BRAND === */
+.brand{position:fixed;bottom:6px;right:12px;font-size:9px;color:rgba(74,158,255,0.08);letter-spacing:4px;z-index:2;font-weight:700}
+
+/* === RESPONSIVE === */
+@media(max-width:380px){
+  .viz-container{width:220px;height:220px}
+  .timer-ring{width:240px;height:240px}
+  .timer-time{font-size:36px}
+  .preset-chip{padding:6px 12px;font-size:11px}
+}
+@media(min-height:800px){
+  .viz-container{width:300px;height:300px}
+  .timer-ring{width:320px;height:320px}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADPHONES NOTICE -->
+<div class="hp-notice" id="hpNotice">
+  <div class="hp-card">
+    <div class="hp-icon">&#127911;</div>
+    <h2>Put on headphones</h2>
+    <p>Focus DJ uses binaural beats that only work with headphones or earbuds. Left and right ears hear slightly different frequencies, creating brainwave entrainment.</p>
+    <button onclick="dismissNotice()">I'm ready</button>
+  </div>
+</div>
+
+<!-- BACKGROUND VISUALIZER -->
+<canvas id="bgViz"></canvas>
+
+<!-- SVG DEFS -->
+<svg style="position:absolute;width:0;height:0">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a9eff"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app">
+  <!-- TASK ANCHOR -->
+  <div class="task-bar" id="taskBar">
+    <span class="icon">&#9899;</span>
+    <input type="text" id="taskInput" placeholder="What's your ONE task?" maxlength="80">
+    <span class="xp" id="taskXp">0 XP</span>
+  </div>
+
+  <!-- CENTER STAGE -->
+  <div class="center-stage">
+    <div class="viz-container">
+      <canvas id="vizCanvas" width="560" height="560"></canvas>
+      <div class="timer-ring">
+        <svg viewBox="0 0 300 300">
+          <circle class="ring-bg" cx="150" cy="150" r="145"/>
+          <circle class="ring-progress" id="ringProgress" cx="150" cy="150" r="145" stroke-dasharray="911" stroke-dashoffset="0"/>
+        </svg>
+      </div>
+      <div class="timer-display">
+        <div class="timer-time" id="timerTime">25:00</div>
+        <div class="timer-label" id="timerLabel">FOCUS</div>
+        <div class="session-dots" id="sessionDots"></div>
+      </div>
+    </div>
+
+    <!-- PRESET CHIPS -->
+    <div class="presets" id="presetChips">
+      <button class="preset-chip active" data-preset="deepfocus">Deep Focus</button>
+      <button class="preset-chip" data-preset="flow">Flow State</button>
+      <button class="preset-chip" data-preset="relax">Relax</button>
+      <button class="preset-chip" data-preset="sleep">Deep Sleep</button>
+      <button class="preset-chip" data-preset="custom">Custom</button>
+    </div>
+  </div>
+
+  <!-- BOTTOM CONTROLS -->
+  <div class="bottom-controls">
+    <div class="main-controls">
+      <button class="ctrl-btn" id="btnSound" title="Sound">&#9835;</button>
+      <button class="ctrl-btn" id="btnTimer" title="Timer">&#9201;</button>
+      <button class="play-btn" id="btnPlay" title="Play">&#9654;</button>
+      <button class="ctrl-btn" id="btnDJ" title="DJ Mode">&#9898;</button>
+      <button class="ctrl-btn" id="btnStats" title="Stats">&#9733;</button>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab" data-panel="sound"><span>Sound</span></button>
+      <button class="nav-tab" data-panel="timer"><span>Timer</span></button>
+      <button class="nav-tab" data-panel="dj"><span>DJ</span></button>
+      <button class="nav-tab" data-panel="stats"><span>Stats</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL OVERLAY -->
+<div class="panel-overlay" id="panelOverlay"></div>
+
+<!-- SOUND PANEL -->
+<div class="panel" id="panelSound">
+  <div class="panel-handle"></div>
+  <h3>Ambient Layer Mixer</h3>
+  <div class="slider-row">
+    <label><span>Master Volume</span><span id="masterVolVal">70%</span></label>
+    <input type="range" min="0" max="100" value="70" id="masterVol">
+  </div>
+  <div class="ambient-grid" id="ambientGrid">
+    <div class="amb-card" data-amb="rain"><div class="amb-icon">&#127783;</div><div class="amb-name">Rain</div></div>
+    <div class="amb-card" data-amb="forest"><div class="amb-icon">&#127795;</div><div class="amb-name">Forest</div></div>
+    <div class="amb-card" data-amb="ocean"><div class="amb-icon">&#127754;</div><div class="amb-name">Ocean</div></div>
+    <div class="amb-card" data-amb="white"><div class="amb-icon">&#9898;</div><div class="amb-name">White</div></div>
+    <div class="amb-card" data-amb="brown"><div class="amb-icon">&#9899;</div><div class="amb-name">Brown</div></div>
+    <div class="amb-card" data-amb="cafe"><div class="amb-icon">&#9749;</div><div class="amb-name">Cafe</div></div>
+  </div>
+  <div id="ambSliders"></div>
+</div>
+
+<!-- TIMER PANEL -->
+<div class="panel" id="panelTimer">
+  <div class="panel-handle"></div>
+  <h3>Focus Timer</h3>
+  <div class="timer-modes">
+    <div class="timer-mode active" data-tm="25/5"><div class="tm-name">25 / 5</div><div class="tm-desc">Short sprint</div></div>
+    <div class="timer-mode" data-tm="50/10"><div class="tm-name">50 / 10</div><div class="tm-desc">Medium flow</div></div>
+    <div class="timer-mode" data-tm="90/20"><div class="tm-name">90 / 20</div><div class="tm-desc">Deep work</div></div>
+    <div class="timer-mode" data-tm="custom"><div class="tm-name">Custom</div><div class="tm-desc">Set your own</div></div>
+  </div>
+  <div class="custom-timer" id="customTimerRow" style="display:none">
+    <input type="number" id="customWork" value="25" min="1" max="180"> <span>min work</span>
+    <input type="number" id="customBreak" value="5" min="1" max="60"> <span>min break</span>
+  </div>
+  <div class="auto-toggle">
+    <span>Auto-start next session</span>
+    <div class="toggle" id="autoStartToggle" onclick="toggleAutoStart()"></div>
+  </div>
+</div>
+
+<!-- DJ PANEL -->
+<div class="panel" id="panelDJ">
+  <div class="panel-handle"></div>
+  <h3>DJ Mode</h3>
+  <div class="slider-row">
+    <label><span>Beat Frequency</span><span id="djBeatVal">2.0 Hz</span></label>
+    <input type="range" min="5" max="400" value="20" id="djBeat" step="1">
+  </div>
+  <div class="slider-row">
+    <label><span>Base Frequency</span><span id="djBaseVal">200 Hz</span></label>
+    <input type="range" min="20" max="500" value="200" id="djBase">
+  </div>
+  <div class="slider-row">
+    <label><span>Stereo Width</span><span id="djWidthVal">100%</span></label>
+    <input type="range" min="0" max="100" value="100" id="djWidth">
+  </div>
+  <div class="slider-row">
+    <label><span>Binaural Volume</span><span id="djBinVolVal">60%</span></label>
+    <input type="range" min="0" max="100" value="60" id="djBinVol">
+  </div>
+</div>
+
+<!-- STATS PANEL -->
+<div class="panel" id="panelStats">
+  <div class="panel-handle"></div>
+  <h3>Session Stats</h3>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val" id="statMinsToday">0</div><div class="stat-label">Min Today</div></div>
+    <div class="stat-card"><div class="stat-val" id="statMinsWeek">0</div><div class="stat-label">Min This Week</div></div>
+    <div class="stat-card"><div class="stat-val" id="statStreak">0</div><div class="stat-label">Day Streak</div></div>
+    <div class="stat-card"><div class="stat-val" id="statSessions">0</div><div class="stat-label">Sessions Today</div></div>
+    <div class="stat-card"><div class="stat-val" id="statAvgLen">0</div><div class="stat-label">Avg Min/Session</div></div>
+    <div class="stat-card"><div class="stat-val" id="statFavPreset">--</div><div class="stat-label">Fav Preset</div></div>
+    <div class="stat-card wide"><div class="stat-val" id="statXP">0</div><div class="stat-label">Total XP</div></div>
+  </div>
+</div>
+
+<!-- TASK COMPLETE MODAL -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <h3>Session Complete</h3>
+    <div class="task-name" id="modalTaskName">Did you finish your task?</div>
+    <div class="modal-btns">
+      <button class="modal-btn no" id="modalNo">Not yet</button>
+      <button class="modal-btn yes" id="modalYes">Done!</button>
+    </div>
+  </div>
+</div>
+<div class="xp-popup" id="xpPopup">+25 XP</div>
+
+<div class="brand">BEHIKE</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================
+   STATE
+   ============================ */
+var AC=null, masterGain=null, binauralGainNode=null;
+var oscL=null,oscR=null,mergerNode=null;
+var playing=false, timerRunning=false, timerInterval=null;
+var isBreakPhase=false, autoStart=false;
+var fadeTime=0.8; // fade in/out seconds
+
+// Timer
+var timerModes={
+  '25/5':{work:25,brk:5},
+  '50/10':{work:50,brk:10},
+  '90/20':{work:90,brk:20},
+  'custom':{work:25,brk:5}
+};
+var currentTimerMode='25/5';
+var timerTotalSec=25*60, timerRemaining=25*60;
+
+// Binaural presets
+var presets={
+  deepfocus:{base:200,beat:2,label:'Deep Focus'},
+  flow:{base:200,beat:10,label:'Flow State'},
+  relax:{base:150,beat:6,label:'Relaxation'},
+  sleep:{base:100,beat:1.5,label:'Deep Sleep'},
+  custom:{base:200,beat:2,label:'Custom'}
+};
+var currentPreset='deepfocus';
+var baseFreq=200, beatFreq=2, binauralVol=0.6, stereoWidth=1.0, masterVol=0.7;
+
+// Ambient layers
+var ambientLayers={};
+var ambientActive={};
+var ambientVolumes={rain:0.5,forest:0.5,ocean:0.5,white:0.5,brown:0.5,cafe:0.5};
+
+// Stats
+var STATS_KEY='focusdj_stats';
+var stats=loadStats();
+
+// Task
+var currentTask='';
+var sessionDoneCount=0;
+
+/* ============================
+   STATS PERSISTENCE
+   ============================ */
+function loadStats(){
+  try{var s=JSON.parse(localStorage.getItem(STATS_KEY));if(s&&s.version===2)return s;}catch(e){}
+  return {version:2,totalXP:0,streak:0,lastDate:null,days:{},presetCounts:{}};
+}
+function saveStats(){localStorage.setItem(STATS_KEY,JSON.stringify(stats));}
+function today(){return new Date().toISOString().slice(0,10);}
+function getWeekStart(){var d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().slice(0,10);}
+function ensureDay(d){if(!stats.days[d])stats.days[d]={mins:0,sessions:0};}
+function addSession(mins){
+  var d=today();ensureDay(d);
+  stats.days[d].mins+=mins;
+  stats.days[d].sessions++;
+  // streak
+  if(stats.lastDate){
+    var last=new Date(stats.lastDate),now=new Date(d);
+    var diff=Math.floor((now-last)/(86400000));
+    if(diff===1)stats.streak++;
+    else if(diff>1)stats.streak=1;
+  }else{stats.streak=1;}
+  stats.lastDate=d;
+  // preset count
+  if(!stats.presetCounts[currentPreset])stats.presetCounts[currentPreset]=0;
+  stats.presetCounts[currentPreset]++;
+  saveStats();
+  sessionDoneCount++;
+  updateSessionDots();
+}
+function addXP(n){stats.totalXP+=n;saveStats();updateStatsUI();updateTaskXP();}
+
+function updateStatsUI(){
+  var d=today(),ws=getWeekStart();
+  ensureDay(d);
+  var weekMins=0,totalSessions=0,totalMins=0;
+  for(var k in stats.days){
+    if(k>=ws)weekMins+=stats.days[k].mins;
+    totalSessions+=stats.days[k].sessions;
+    totalMins+=stats.days[k].mins;
+  }
+  var el=function(id){return document.getElementById(id);};
+  el('statMinsToday').textContent=stats.days[d]?stats.days[d].mins:0;
+  el('statMinsWeek').textContent=weekMins;
+  el('statStreak').textContent=stats.streak;
+  el('statSessions').textContent=stats.days[d]?stats.days[d].sessions:0;
+  el('statAvgLen').textContent=totalSessions?Math.round(totalMins/totalSessions):0;
+  el('statXP').textContent=stats.totalXP;
+  // fav preset
+  var fav='--',favC=0;
+  for(var p in stats.presetCounts){if(stats.presetCounts[p]>favC){favC=stats.presetCounts[p];fav=presets[p]?presets[p].label:p;}}
+  el('statFavPreset').textContent=fav;
+}
+
+function updateTaskXP(){
+  document.getElementById('taskXp').textContent=stats.totalXP+' XP';
+}
+
+/* ============================
+   AUDIO ENGINE
+   ============================ */
+function initAudio(){
+  if(AC)return;
+  AC=new(window.AudioContext||window.webkitAudioContext)();
+  masterGain=AC.createGain();
+  masterGain.gain.value=0;
+  masterGain.connect(AC.destination);
+}
+
+function startBinaural(){
+  if(!AC)initAudio();
+  if(AC.state==='suspended')AC.resume();
+  stopBinaural();
+
+  mergerNode=AC.createChannelMerger(2);
+  binauralGainNode=AC.createGain();
+  binauralGainNode.gain.value=binauralVol;
+
+  var gainL=AC.createGain();gainL.gain.value=stereoWidth;
+  var gainR=AC.createGain();gainR.gain.value=stereoWidth;
+
+  oscL=AC.createOscillator();oscL.type='sine';oscL.frequency.value=baseFreq;
+  oscR=AC.createOscillator();oscR.type='sine';oscR.frequency.value=baseFreq+beatFreq;
+
+  oscL.connect(gainL);gainL.connect(mergerNode,0,0);
+  oscR.connect(gainR);gainR.connect(mergerNode,0,1);
+  mergerNode.connect(binauralGainNode);
+  binauralGainNode.connect(masterGain);
+
+  oscL.start();oscR.start();
+}
+
+function stopBinaural(){
+  try{if(oscL){oscL.stop();oscL.disconnect();}}catch(e){}
+  try{if(oscR){oscR.stop();oscR.disconnect();}}catch(e){}
+  try{if(mergerNode)mergerNode.disconnect();}catch(e){}
+  try{if(binauralGainNode)binauralGainNode.disconnect();}catch(e){}
+  oscL=oscR=mergerNode=binauralGainNode=null;
+}
+
+function updateBinauralFreqs(){
+  if(oscL)oscL.frequency.setValueAtTime(baseFreq,AC.currentTime);
+  if(oscR)oscR.frequency.setValueAtTime(baseFreq+beatFreq,AC.currentTime);
+}
+
+function updateBinauralVol(){
+  if(binauralGainNode)binauralGainNode.gain.setValueAtTime(binauralVol,AC.currentTime);
+}
+
+function updateStereoWidth(){
+  // Rebuild binaural with new width if playing
+  if(playing&&oscL){startBinaural();}
+}
+
+function fadeIn(){
+  if(!masterGain)return;
+  masterGain.gain.cancelScheduledValues(AC.currentTime);
+  masterGain.gain.setValueAtTime(0,AC.currentTime);
+  masterGain.gain.linearRampToValueAtTime(masterVol,AC.currentTime+fadeTime);
+}
+
+function fadeOut(cb){
+  if(!masterGain){if(cb)cb();return;}
+  masterGain.gain.cancelScheduledValues(AC.currentTime);
+  masterGain.gain.setValueAtTime(masterGain.gain.value,AC.currentTime);
+  masterGain.gain.linearRampToValueAtTime(0,AC.currentTime+fadeTime);
+  if(cb)setTimeout(cb,fadeTime*1000+50);
+}
+
+/* ============================
+   AMBIENT SOUND GENERATORS
+   ============================ */
+function createNoiseBuffer(type){
+  var sr=AC.sampleRate,len=sr*2;
+  var buf=AC.createBuffer(2,len,sr);
+  for(var ch=0;ch<2;ch++){
+    var d=buf.getChannelData(ch);
+    if(type==='white'){
+      for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*0.5;
+    }else if(type==='brown'){
+      var last=0;
+      for(var i=0;i<len;i++){d[i]=(last+(0.02*(Math.random()*2-1)))/1.02;last=d[i];d[i]*=3.5;}
+    }else if(type==='pink'){
+      var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+      for(var i=0;i<len;i++){
+        var w=Math.random()*2-1;
+        b0=0.99886*b0+w*0.0555179;b1=0.99332*b1+w*0.0750759;
+        b2=0.96900*b2+w*0.1538520;b3=0.86650*b3+w*0.3104856;
+        b4=0.55000*b4+w*0.5329522;b5=-0.7616*b5-w*0.0168980;
+        d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;b6=w*0.115926;
+      }
+    }
+  }
+  return buf;
+}
+
+function createAmbientLayer(name){
+  if(!AC)initAudio();
+  if(ambientLayers[name])return;
+
+  var gain=AC.createGain();
+  gain.gain.value=ambientVolumes[name]||0.5;
+
+  if(name==='rain'){
+    // Filtered noise to simulate rain
+    var src=AC.createBufferSource();src.buffer=createNoiseBuffer('pink');src.loop=true;
+    var hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=800;
+    var lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=8000;
+    // Add subtle modulation with LFO
+    var lfo=AC.createOscillator();lfo.frequency.value=0.3;
+    var lfoGain=AC.createGain();lfoGain.gain.value=0.15;
+    lfo.connect(lfoGain);lfoGain.connect(gain.gain);lfo.start();
+    src.connect(hp);hp.connect(lp);lp.connect(gain);
+    gain.connect(masterGain);src.start();
+    ambientLayers[name]={source:src,gain:gain,extras:[lfo]};
+  }else if(name==='forest'){
+    // High-passed pink noise + chirp oscillators
+    var src=AC.createBufferSource();src.buffer=createNoiseBuffer('pink');src.loop=true;
+    var bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3000;bp.Q.value=0.5;
+    src.connect(bp);bp.connect(gain);gain.connect(masterGain);src.start();
+    // Bird chirps via modulated sine
+    var chirp=AC.createOscillator();chirp.type='sine';chirp.frequency.value=2800;
+    var chirpGain=AC.createGain();chirpGain.gain.value=0;
+    var chirpLfo=AC.createOscillator();chirpLfo.frequency.value=5;
+    var chirpLfoGain=AC.createGain();chirpLfoGain.gain.value=0.08;
+    chirpLfo.connect(chirpLfoGain);chirpLfoGain.connect(chirpGain.gain);
+    chirp.connect(chirpGain);chirpGain.connect(gain);
+    chirp.start();chirpLfo.start();
+    ambientLayers[name]={source:src,gain:gain,extras:[chirp,chirpLfo]};
+  }else if(name==='ocean'){
+    // Brown noise with slow LFO for waves
+    var src=AC.createBufferSource();src.buffer=createNoiseBuffer('brown');src.loop=true;
+    var lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=600;
+    var lfo=AC.createOscillator();lfo.frequency.value=0.08;
+    var lfoGain=AC.createGain();lfoGain.gain.value=400;
+    lfo.connect(lfoGain);lfoGain.connect(lp.frequency);lfo.start();
+    src.connect(lp);lp.connect(gain);gain.connect(masterGain);src.start();
+    ambientLayers[name]={source:src,gain:gain,extras:[lfo]};
+  }else if(name==='white'){
+    var src=AC.createBufferSource();src.buffer=createNoiseBuffer('white');src.loop=true;
+    src.connect(gain);gain.connect(masterGain);src.start();
+    ambientLayers[name]={source:src,gain:gain,extras:[]};
+  }else if(name==='brown'){
+    var src=AC.createBufferSource();src.buffer=createNoiseBuffer('brown');src.loop=true;
+    var lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=400;
+    src.connect(lp);lp.connect(gain);gain.connect(masterGain);src.start();
+    ambientLayers[name]={source:src,gain:gain,extras:[]};
+  }else if(name==='cafe'){
+    // Layered noise: brown base + occasional pink bursts
+    var src=AC.createBufferSource();src.buffer=createNoiseBuffer('brown');src.loop=true;
+    var bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=800;bp.Q.value=0.3;
+    var src2=AC.createBufferSource();src2.buffer=createNoiseBuffer('pink');src2.loop=true;
+    var bp2=AC.createBiquadFilter();bp2.type='bandpass';bp2.frequency.value=2000;bp2.Q.value=0.8;
+    var g2=AC.createGain();g2.gain.value=0.3;
+    // slow mod for "chatter"
+    var lfo=AC.createOscillator();lfo.frequency.value=0.5;
+    var lfoG=AC.createGain();lfoG.gain.value=0.2;
+    lfo.connect(lfoG);lfoG.connect(g2.gain);lfo.start();
+    src.connect(bp);bp.connect(gain);
+    src2.connect(bp2);bp2.connect(g2);g2.connect(gain);
+    gain.connect(masterGain);src.start();src2.start();
+    ambientLayers[name]={source:src,gain:gain,extras:[src2,lfo]};
+  }
+  ambientActive[name]=true;
+}
+
+function destroyAmbientLayer(name){
+  var l=ambientLayers[name];if(!l)return;
+  try{l.source.stop();}catch(e){}
+  try{l.source.disconnect();}catch(e){}
+  try{l.gain.disconnect();}catch(e){}
+  if(l.extras)l.extras.forEach(function(n){try{n.stop();}catch(e){}try{n.disconnect();}catch(e){}});
+  delete ambientLayers[name];
+  delete ambientActive[name];
+}
+
+function setAmbientVolume(name,val){
+  ambientVolumes[name]=val;
+  if(ambientLayers[name])ambientLayers[name].gain.gain.setValueAtTime(val,AC.currentTime);
+}
+
+/* ============================
+   CHIME (synthesized)
+   ============================ */
+function playChime(){
+  if(!AC)return;
+  var now=AC.currentTime;
+  var o1=AC.createOscillator();o1.type='sine';o1.frequency.value=523.25;
+  var o2=AC.createOscillator();o2.type='sine';o2.frequency.value=659.25;
+  var o3=AC.createOscillator();o3.type='sine';o3.frequency.value=783.99;
+  var g=AC.createGain();g.gain.setValueAtTime(0,now);
+  g.gain.linearRampToValueAtTime(0.15,now+0.05);
+  g.gain.exponentialRampToValueAtTime(0.001,now+2);
+  [o1,o2,o3].forEach(function(o){o.connect(g);o.start(now);o.stop(now+2);});
+  g.connect(AC.destination);
+}
+
+/* ============================
+   TIMER ENGINE
+   ============================ */
+function startTimer(){
+  if(timerRunning)return;
+  timerRunning=true;
+  timerInterval=setInterval(function(){
+    timerRemaining--;
+    if(timerRemaining<=0){
+      clearInterval(timerInterval);timerRunning=false;
+      playChime();
+      var cfg=timerModes[currentTimerMode];
+      var workMins=isBreakPhase?cfg.brk:cfg.work;
+      if(!isBreakPhase){
+        addSession(workMins);addXP(10);
+        // Show task modal
+        if(currentTask){
+          showTaskModal();
+        }else{
+          // no task, just flip
+          isBreakPhase=true;
+          timerRemaining=cfg.brk*60;timerTotalSec=cfg.brk*60;
+          document.getElementById('timerLabel').textContent='BREAK';
+          if(autoStart)startTimer();
+        }
+      }else{
+        isBreakPhase=false;
+        timerRemaining=cfg.work*60;timerTotalSec=cfg.work*60;
+        document.getElementById('timerLabel').textContent='FOCUS';
+        if(autoStart)startTimer();
+      }
+    }
+    updateTimerDisplay();
+  },1000);
+}
+
+function stopTimer(){
+  clearInterval(timerInterval);timerRunning=false;
+}
+
+function resetTimer(){
+  stopTimer();
+  isBreakPhase=false;
+  var cfg=timerModes[currentTimerMode];
+  timerTotalSec=cfg.work*60;
+  timerRemaining=timerTotalSec;
+  document.getElementById('timerLabel').textContent='FOCUS';
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay(){
+  var m=Math.floor(timerRemaining/60),s=timerRemaining%60;
+  document.getElementById('timerTime').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  // ring
+  var pct=timerTotalSec>0?(timerTotalSec-timerRemaining)/timerTotalSec:0;
+  var circumference=911;
+  document.getElementById('ringProgress').style.strokeDashoffset=circumference*(1-pct);
+}
+
+function updateSessionDots(){
+  var el=document.getElementById('sessionDots');
+  el.innerHTML='';
+  for(var i=0;i<Math.min(sessionDoneCount,8);i++){
+    var dot=document.createElement('div');dot.className='session-dot done';el.appendChild(dot);
+  }
+}
+
+/* ============================
+   TASK MODAL
+   ============================ */
+function showTaskModal(){
+  var modal=document.getElementById('taskModal');
+  document.getElementById('modalTaskName').textContent='Did you finish: "'+currentTask+'"?';
+  modal.classList.add('show');
+}
+
+document.getElementById('modalYes').onclick=function(){
+  document.getElementById('taskModal').classList.remove('show');
+  addXP(25);
+  showXPPopup('+25 XP');
+  // Clear task
+  currentTask='';document.getElementById('taskInput').value='';
+  document.getElementById('taskBar').classList.remove('has-task');
+  // Move to break
+  transitionToBreak();
+};
+
+document.getElementById('modalNo').onclick=function(){
+  document.getElementById('taskModal').classList.remove('show');
+  // Offer to continue - just restart work timer
+  var cfg=timerModes[currentTimerMode];
+  isBreakPhase=false;
+  timerRemaining=cfg.work*60;timerTotalSec=cfg.work*60;
+  document.getElementById('timerLabel').textContent='FOCUS';
+  updateTimerDisplay();
+  if(autoStart)startTimer();
+};
+
+function transitionToBreak(){
+  var cfg=timerModes[currentTimerMode];
+  isBreakPhase=true;
+  timerRemaining=cfg.brk*60;timerTotalSec=cfg.brk*60;
+  document.getElementById('timerLabel').textContent='BREAK';
+  updateTimerDisplay();
+  if(autoStart)startTimer();
+}
+
+function showXPPopup(text){
+  var el=document.getElementById('xpPopup');
+  el.textContent=text;el.classList.add('show');
+  setTimeout(function(){el.classList.remove('show');},1200);
+}
+
+/* ============================
+   PLAY / PAUSE
+   ============================ */
+document.getElementById('btnPlay').onclick=function(){
+  if(!playing){
+    // Lock in task
+    var ti=document.getElementById('taskInput');
+    if(ti.value.trim()){
+      currentTask=ti.value.trim();
+      ti.readOnly=true;
+      document.getElementById('taskBar').classList.add('has-task');
+    }
+    initAudio();
+    startBinaural();
+    fadeIn();
+    startTimer();
+    playing=true;
+    this.classList.add('playing');
+    this.innerHTML='&#10074;&#10074;';
+  }else{
+    fadeOut(function(){
+      stopBinaural();
+    });
+    stopTimer();
+    playing=false;
+    this.classList.remove('playing');
+    this.innerHTML='&#9654;';
+    document.getElementById('taskInput').readOnly=false;
+  }
+};
+
+/* ============================
+   PRESET CHIPS
+   ============================ */
+document.querySelectorAll('.preset-chip').forEach(function(chip){
+  chip.onclick=function(){
+    document.querySelectorAll('.preset-chip').forEach(function(c){c.classList.remove('active');});
+    this.classList.add('active');
+    var p=this.dataset.preset;
+    currentPreset=p;
+    var cfg=presets[p];
+    baseFreq=cfg.base;beatFreq=cfg.beat;
+    updateBinauralFreqs();
+    // Sync DJ sliders
+    document.getElementById('djBase').value=baseFreq;
+    document.getElementById('djBaseVal').textContent=baseFreq+' Hz';
+    document.getElementById('djBeat').value=Math.round(beatFreq*10);
+    document.getElementById('djBeatVal').textContent=beatFreq.toFixed(1)+' Hz';
+  };
+});
+
+/* ============================
+   PANELS
+   ============================ */
+var openPanel=null;
+function showPanel(name){
+  if(openPanel===name){closePanel();return;}
+  closePanel();
+  openPanel=name;
+  document.getElementById('panel'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('open');
+  document.getElementById('panelOverlay').classList.add('open');
+  // highlight ctrl btn
+  document.querySelectorAll('.ctrl-btn').forEach(function(b){b.classList.remove('active');});
+  var map={sound:'btnSound',timer:'btnTimer',dj:'btnDJ',stats:'btnStats'};
+  if(map[name])document.getElementById(map[name]).classList.add('active');
+}
+function closePanel(){
+  if(!openPanel)return;
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('open');});
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.querySelectorAll('.ctrl-btn').forEach(function(b){b.classList.remove('active');});
+  openPanel=null;
+}
+document.getElementById('panelOverlay').onclick=closePanel;
+document.getElementById('btnSound').onclick=function(){showPanel('sound');};
+document.getElementById('btnTimer').onclick=function(){showPanel('timer');};
+document.getElementById('btnDJ').onclick=function(){showPanel('dj');};
+document.getElementById('btnStats').onclick=function(){updateStatsUI();showPanel('stats');};
+
+// Nav tabs too
+document.querySelectorAll('.nav-tab').forEach(function(t){
+  t.onclick=function(){showPanel(this.dataset.panel);};
+});
+
+/* ============================
+   SOUND PANEL
+   ============================ */
+document.getElementById('masterVol').oninput=function(){
+  masterVol=this.value/100;
+  document.getElementById('masterVolVal').textContent=this.value+'%';
+  if(masterGain&&playing)masterGain.gain.setValueAtTime(masterVol,AC.currentTime);
+};
+
+// Ambient toggles
+document.querySelectorAll('.amb-card').forEach(function(card){
+  card.onclick=function(){
+    var name=this.dataset.amb;
+    if(ambientActive[name]){
+      destroyAmbientLayer(name);
+      this.classList.remove('active');
+      removeAmbSlider(name);
+    }else{
+      if(!AC)initAudio();
+      if(AC.state==='suspended')AC.resume();
+      createAmbientLayer(name);
+      this.classList.add('active');
+      addAmbSlider(name);
+      if(!playing){masterGain.gain.setValueAtTime(masterVol,AC.currentTime);}
+    }
+  };
+});
+
+function addAmbSlider(name){
+  var cont=document.getElementById('ambSliders');
+  var row=document.createElement('div');row.className='slider-row';row.id='ambSlider_'+name;
+  row.innerHTML='<label><span>'+name.charAt(0).toUpperCase()+name.slice(1)+' Vol</span><span id="ambVal_'+name+'">'+Math.round(ambientVolumes[name]*100)+'%</span></label><input type="range" min="0" max="100" value="'+Math.round(ambientVolumes[name]*100)+'">';
+  row.querySelector('input').oninput=function(){
+    var v=this.value/100;
+    setAmbientVolume(name,v);
+    document.getElementById('ambVal_'+name).textContent=this.value+'%';
+  };
+  cont.appendChild(row);
+}
+function removeAmbSlider(name){
+  var el=document.getElementById('ambSlider_'+name);if(el)el.remove();
+}
+
+/* ============================
+   TIMER PANEL
+   ============================ */
+document.querySelectorAll('.timer-mode').forEach(function(m){
+  m.onclick=function(){
+    document.querySelectorAll('.timer-mode').forEach(function(x){x.classList.remove('active');});
+    this.classList.add('active');
+    var tm=this.dataset.tm;
+    currentTimerMode=tm;
+    if(tm==='custom'){
+      document.getElementById('customTimerRow').style.display='flex';
+      var w=parseInt(document.getElementById('customWork').value)||25;
+      var b=parseInt(document.getElementById('customBreak').value)||5;
+      timerModes.custom={work:w,brk:b};
+    }else{
+      document.getElementById('customTimerRow').style.display='none';
+    }
+    resetTimer();
+  };
+});
+
+document.getElementById('customWork').onchange=function(){
+  var w=parseInt(this.value)||25;
+  timerModes.custom.work=w;if(currentTimerMode==='custom')resetTimer();
+};
+document.getElementById('customBreak').onchange=function(){
+  var b=parseInt(this.value)||5;
+  timerModes.custom.brk=b;
+};
+
+function toggleAutoStart(){
+  autoStart=!autoStart;
+  document.getElementById('autoStartToggle').classList.toggle('on',autoStart);
+}
+
+/* ============================
+   DJ PANEL
+   ============================ */
+document.getElementById('djBeat').oninput=function(){
+  beatFreq=this.value/10;
+  document.getElementById('djBeatVal').textContent=beatFreq.toFixed(1)+' Hz';
+  updateBinauralFreqs();
+  // Switch to custom preset
+  document.querySelectorAll('.preset-chip').forEach(function(c){c.classList.remove('active');});
+  document.querySelector('[data-preset="custom"]').classList.add('active');
+  currentPreset='custom';presets.custom.beat=beatFreq;
+};
+document.getElementById('djBase').oninput=function(){
+  baseFreq=parseInt(this.value);
+  document.getElementById('djBaseVal').textContent=baseFreq+' Hz';
+  updateBinauralFreqs();
+  presets.custom.base=baseFreq;
+};
+document.getElementById('djWidth').oninput=function(){
+  stereoWidth=this.value/100;
+  document.getElementById('djWidthVal').textContent=this.value+'%';
+  if(playing)updateStereoWidth();
+};
+document.getElementById('djBinVol').oninput=function(){
+  binauralVol=this.value/100;
+  document.getElementById('djBinVolVal').textContent=this.value+'%';
+  updateBinauralVol();
+};
+
+/* ============================
+   HEADPHONES NOTICE
+   ============================ */
+window.dismissNotice=function(){
+  document.getElementById('hpNotice').style.opacity='0';
+  document.getElementById('hpNotice').style.transition='opacity 0.4s';
+  setTimeout(function(){document.getElementById('hpNotice').style.display='none';},400);
+  localStorage.setItem('focusdj_noticed','1');
+};
+if(localStorage.getItem('focusdj_noticed')){
+  document.getElementById('hpNotice').style.display='none';
+}
+
+/* ============================
+   VISUALIZER (Canvas)
+   ============================ */
+var bgCanvas=document.getElementById('bgViz');
+var bgCtx=bgCanvas.getContext('2d');
+var vizCanvas=document.getElementById('vizCanvas');
+var vizCtx=vizCanvas.getContext('2d');
+
+function resizeBg(){bgCanvas.width=window.innerWidth;bgCanvas.height=window.innerHeight;}
+resizeBg();window.addEventListener('resize',resizeBg);
+
+// Particles for background
+var particles=[];
+for(var i=0;i<50;i++){
+  particles.push({
+    x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
+    vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,
+    r:Math.random()*2+0.5,a:Math.random()*0.2+0.05
+  });
+}
+
+function drawBg(){
+  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+  var sp=playing?1.2:0.3;
+  var t=Date.now()*0.001;
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];
+    p.x+=p.vx*sp;p.y+=p.vy*sp;
+    if(p.x<0)p.x=bgCanvas.width;if(p.x>bgCanvas.width)p.x=0;
+    if(p.y<0)p.y=bgCanvas.height;if(p.y>bgCanvas.height)p.y=0;
+    var pulse=playing?Math.sin(t*beatFreq*0.5+i)*0.3+0.7:0.5;
+    bgCtx.globalAlpha=p.a*pulse;
+    bgCtx.fillStyle='#4a9eff';
+    bgCtx.beginPath();
+    bgCtx.arc(p.x,p.y,p.r*(playing?1.5:1),0,Math.PI*2);
+    bgCtx.fill();
+  }
+  // Subtle connections
+  bgCtx.globalAlpha=0.03;bgCtx.strokeStyle='#4a9eff';bgCtx.lineWidth=0.5;
+  for(var i=0;i<particles.length;i++){
+    for(var j=i+1;j<particles.length;j++){
+      var dx=particles[i].x-particles[j].x,dy=particles[i].y-particles[j].y;
+      if(Math.abs(dx)<120&&Math.abs(dy)<120){
+        bgCtx.beginPath();bgCtx.moveTo(particles[i].x,particles[i].y);
+        bgCtx.lineTo(particles[j].x,particles[j].y);bgCtx.stroke();
+      }
+    }
+  }
+  bgCtx.globalAlpha=1;
+}
+
+// Center visualizer - frequency bars + waveform
+var vizBars=32;
+var barValues=new Float32Array(vizBars);
+
+function drawViz(){
+  var w=vizCanvas.width,h=vizCanvas.height,cx=w/2,cy=h/2;
+  vizCtx.clearRect(0,0,w,h);
+  var t=Date.now()*0.001;
+
+  if(playing){
+    // Animate bar values based on beat frequency and time
+    for(var i=0;i<vizBars;i++){
+      var target=0.2+0.6*Math.abs(Math.sin(t*beatFreq*0.3+i*0.4))*Math.abs(Math.sin(t*1.5+i*0.8));
+      barValues[i]+=(target-barValues[i])*0.15;
+    }
+  }else{
+    for(var i=0;i<vizBars;i++){
+      barValues[i]+=(0.05-barValues[i])*0.05;
+    }
+  }
+
+  // Draw radial bars
+  var radius=80;
+  var maxBarH=100;
+  for(var i=0;i<vizBars;i++){
+    var angle=(i/vizBars)*Math.PI*2-Math.PI/2;
+    var val=barValues[i];
+    var barH=val*maxBarH;
+    var x1=cx+Math.cos(angle)*(radius);
+    var y1=cy+Math.sin(angle)*(radius);
+    var x2=cx+Math.cos(angle)*(radius+barH);
+    var y2=cy+Math.sin(angle)*(radius+barH);
+
+    var grad=vizCtx.createLinearGradient(x1,y1,x2,y2);
+    grad.addColorStop(0,'rgba(74,158,255,'+val*0.8+')');
+    grad.addColorStop(1,'rgba(139,92,246,'+val*0.6+')');
+    vizCtx.strokeStyle=grad;
+    vizCtx.lineWidth=Math.max(4,12*(1-i/vizBars));
+    vizCtx.lineCap='round';
+    vizCtx.beginPath();vizCtx.moveTo(x1,y1);vizCtx.lineTo(x2,y2);vizCtx.stroke();
+  }
+
+  // Inner glow circle
+  var glowR=radius-10;
+  var innerGrad=vizCtx.createRadialGradient(cx,cy,0,cx,cy,glowR);
+  var pulse=playing?0.08+0.04*Math.sin(t*beatFreq*0.5):0.03;
+  innerGrad.addColorStop(0,'rgba(74,158,255,'+pulse+')');
+  innerGrad.addColorStop(0.7,'rgba(139,92,246,'+pulse*0.3+')');
+  innerGrad.addColorStop(1,'rgba(0,0,0,0)');
+  vizCtx.fillStyle=innerGrad;
+  vizCtx.beginPath();vizCtx.arc(cx,cy,glowR,0,Math.PI*2);vizCtx.fill();
+
+  // Outer ring
+  vizCtx.strokeStyle='rgba(74,158,255,'+(playing?0.15:0.05)+')';
+  vizCtx.lineWidth=1;
+  vizCtx.beginPath();vizCtx.arc(cx,cy,radius-2,0,Math.PI*2);vizCtx.stroke();
+}
+
+function animLoop(){
+  drawBg();
+  drawViz();
+  requestAnimationFrame(animLoop);
+}
+animLoop();
+
+/* ============================
+   INIT
+   ============================ */
+updateTimerDisplay();
+updateStatsUI();
+updateTaskXP();
+
+// Restore preferences from localStorage
+try{
+  var prefs=JSON.parse(localStorage.getItem('focusdj_prefs'));
+  if(prefs){
+    if(prefs.preset&&presets[prefs.preset]){
+      currentPreset=prefs.preset;
+      baseFreq=presets[prefs.preset].base;
+      beatFreq=presets[prefs.preset].beat;
+      document.querySelectorAll('.preset-chip').forEach(function(c){
+        c.classList.toggle('active',c.dataset.preset===prefs.preset);
+      });
+    }
+    if(prefs.masterVol!==undefined){
+      masterVol=prefs.masterVol;
+      document.getElementById('masterVol').value=Math.round(masterVol*100);
+      document.getElementById('masterVolVal').textContent=Math.round(masterVol*100)+'%';
+    }
+    if(prefs.timerMode){
+      currentTimerMode=prefs.timerMode;
+      document.querySelectorAll('.timer-mode').forEach(function(m){
+        m.classList.toggle('active',m.dataset.tm===prefs.timerMode);
+      });
+      resetTimer();
+    }
+  }
+}catch(e){}
+
+// Save prefs on unload
+window.addEventListener('beforeunload',function(){
+  localStorage.setItem('focusdj_prefs',JSON.stringify({
+    preset:currentPreset,masterVol:masterVol,timerMode:currentTimerMode
+  }));
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT')return;
+  if(e.code==='Space'){e.preventDefault();document.getElementById('btnPlay').click();}
+});
+
+})();
+</script>
+</body>
+</html>
