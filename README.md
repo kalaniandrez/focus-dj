@@ -1,5 +1,7 @@
 # Focus DJ
 
+![Focus DJ — binaural focus timer](demo.png)
+
 Binaural beats plus brown and pink noise, a reactive visualizer, and an ADHD task
 anchor so the timer never loses the one thing you sat down to do. Put on headphones.
 
